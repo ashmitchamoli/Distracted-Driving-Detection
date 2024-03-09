@@ -53,7 +53,7 @@ class Preprocessor:
                               num_nodes=len(nodeIndex),
                               x=torch.ones(len(nodeIndex), 1),
                               num_features=1)
-            
+
             sceneGraph.nodeIndex = nodeIndex
             sceneGraph.edgeAttributeIndex = edgeAttributeIndex
             
@@ -69,6 +69,24 @@ class Preprocessor:
         """
         pathToFile = os.path.join(DATASET_NAME, videoName, SCENEGRAPH_FILE_NAME)
         data = pd.read_json(pathToFile, orient='index')
+
+        def getLabels(row):
+            """
+            gets the label for each scene graph.
+            """
+            name = row.name
+
+            row['id'] = name
+            row['label'] = None
+
+            return row
+            
+
         return data
 
+    def readImageEmbeddings(self, videoName : str):
+        pass
 
+    def readPeripheralInputs(self, videoName : str):
+        pass
+    
