@@ -29,14 +29,14 @@ class LinearClassifier(torch.nn.Module):
 
         self.imgEmbeddingEncoder = torch.nn.Sequential()
         for i in range(len(self.encoderHiddenLayers)):
-            linearLayer = torch.nn.Linear(self.imgEmbeddingSize if i == 0 else self,encoderHiddenLayers[i], 
-                                          self.reducedImgEmbeddingSize if i == len(self.encoderHiddenLayers) - 1 else self.encoderHiddenLayers[i+1])
+            linearLayer = torch.nn.Linear(self.imgEmbeddingSize if i == 0 else self.encoderHiddenLayers[i], 
+                                          self.reducedImgEmbeddingSize if (i == len(self.encoderHiddenLayers) - 1) else self.encoderHiddenLayers[i+1])
             self.imgEmbeddingEncoder.append(linearLayer)
             if i == len(self.encoderHiddenLayers) - 1:
                 continue # ! which activation function to add at the end?
             else:
                 self.imgEmbeddingEncoder.append(torch.nn.ReLU())
-        
+
         if len(self.encoderHiddenLayers) == 0:
             linearLayer = torch.nn.Linear(self.imgEmbeddingSize, self.reducedImgEmbeddingSize)
             self.imgEmbeddingEncoder.append(linearLayer)
@@ -50,16 +50,32 @@ class LinearClassifier(torch.nn.Module):
                                           self.numClasses if i == len(self.feedForwardHiddenLayers) - 1 else self.feedForwardHiddenLayers[i+1])
             self.feedForwardLayer.append(linearLayer)
             if i == len(self.feedForwardHiddenLayers) - 1:
-                self.feedForwardLayer.append(torch.nn.Softmax(dim=1))
+                # ! handle the softmax dim for batched input
+                self.feedForwardLayer.append(torch.nn.Softmax(dim=0))
             else:
                 self.feedForwardLayer.append(torch.nn.ReLU())
 
         if len(self.feedForwardHiddenLayers) == 0:
             linearLayer = torch.nn.Linear(n_feedForwardInputs, self.numClasses)
             self.feedForwardLayer.append(linearLayer)
-            self.feedForwardLayer.append(torch.nn.Softmax(dim=1))
+            # ! handle the softmax dim for batched input
+            self.feedForwardLayer.append(torch.nn.Softmax(dim=0))
         
+
     def forward(self, imgEmbedding, sceneGraphEmbedding, peripheralInputs):
         imgEmbedding = self.imgEmbeddingEncoder(imgEmbedding)
-        input = torch.cat((imgEmbedding, sceneGraphEmbedding, peripheralInputs), dim=1)
+
+        # flatten scene graph embedding
+        sceneGraphEmbedding = sceneGraphEmbedding.reshape(-1)
+
+        # print(imgEmbedding.shape, sceneGraphEmbedding.shape, peripheralInputs.shape)
+
+        # input = torch.cat((imgEmbedding.reshape(-1, imgEmbedding.shape[1]), 
+        #                    sceneGraphEmbedding, 
+        #                    peripheralInputs.reshape(-1, imgEmbedding.shape[1])), dim=1)
+        
+        # ! the following will work only when batch size is 1. change this later when you add batched input
+        input = torch.cat((imgEmbedding, sceneGraphEmbedding, peripheralInputs))
+
+        # input = torch.cat((imgEmbedding, sceneGraphEmbedding, peripheralInputs), dim=1)
         return self.feedForwardLayer(input)
