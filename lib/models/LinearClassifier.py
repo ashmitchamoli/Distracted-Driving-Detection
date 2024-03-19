@@ -33,13 +33,15 @@ class LinearClassifier(torch.nn.Module):
                                           self.reducedImgEmbeddingSize if (i == len(self.encoderHiddenLayers) - 1) else self.encoderHiddenLayers[i+1])
             self.imgEmbeddingEncoder.append(linearLayer)
             if i == len(self.encoderHiddenLayers) - 1:
+                self.imgEmbeddingEncoder.append(torch.nn.Tanh())
                 continue # ! which activation function to add at the end?
             else:
-                self.imgEmbeddingEncoder.append(torch.nn.ReLU())
+                self.imgEmbeddingEncoder.append(torch.nn.Tanh())
 
         if len(self.encoderHiddenLayers) == 0:
             linearLayer = torch.nn.Linear(self.imgEmbeddingSize, self.reducedImgEmbeddingSize)
             self.imgEmbeddingEncoder.append(linearLayer)
+            self.imgEmbeddingEncoder.append(torch.nn.Tanh())
             # ! which activation function to add at the end?
 
         # define linear layer here
@@ -51,19 +53,21 @@ class LinearClassifier(torch.nn.Module):
             self.feedForwardLayer.append(linearLayer)
             if i == len(self.feedForwardHiddenLayers) - 1:
                 # ! handle the softmax dim for batched input
-                self.feedForwardLayer.append(torch.nn.Softmax(dim=0))
+                # self.feedForwardLayer.append(torch.nn.Softmax(dim=0))
+                pass
             else:
-                self.feedForwardLayer.append(torch.nn.ReLU())
+                self.feedForwardLayer.append(torch.nn.Tanh())
 
         if len(self.feedForwardHiddenLayers) == 0:
             linearLayer = torch.nn.Linear(n_feedForwardInputs, self.numClasses)
             self.feedForwardLayer.append(linearLayer)
             # ! handle the softmax dim for batched input
-            self.feedForwardLayer.append(torch.nn.Softmax(dim=0))
+            # self.feedForwardLayer.append(torch.nn.Softmax(dim=0))
         
 
     def forward(self, imgEmbedding, sceneGraphEmbedding, peripheralInputs):
         imgEmbedding = self.imgEmbeddingEncoder(imgEmbedding)
+        # print("imgEmbedding:", imgEmbedding)
 
         # flatten scene graph embedding
         sceneGraphEmbedding = sceneGraphEmbedding.reshape(-1)

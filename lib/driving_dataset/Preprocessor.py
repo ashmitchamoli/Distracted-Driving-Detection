@@ -3,30 +3,30 @@ from torch_geometric.data import Data
 import torch
 import os 
 
-DATASET_NAME = 'Datasets/DDDatasetAnnotated'
-SCENEGRAPH_FILE_NAME = 'sceneGraphs.json'
-IMAGE_EMBEDDING_FILE_NAME = 'imageEmbeddings.json'
+DATASET_NAME = 'Datasets/SynDDAnnotated'
+SCENEGRAPH_DIR_NAME = 'sceneGraphs'
+IMAGE_EMBEDDING_DIR_NAME = 'imageEmbeddings'
 
 class Preprocessor:
     def __init__(self) -> None:
         pass
-
-    def loadSceneGraphData(self, videoName : str) -> list[Data]:
+    
+    def loadSceneGraphData(self, videoName : str, split : str) -> list[Data]:
         """
-        dataPath : path to scene graph json file
+        videoName : name of the video
+        split : 'train', 'dev', 'test'
 
         Returns a DataFrame of torch_geometric.data.Data objects.
         """
-        data = self.readSceneGraphs(videoName)
+        data = self.readSceneGraphs(videoName, split)
 
-        # sceneGraphs = []
+        nodeIndex = {}
+        edgeAttributeIndex = {}
 
         def getSceneGraph(row):
             """
             gets a row of the dataframe and appends a corresponding Data object into the scenegraph
             """
-            nodeIndex = {}
-            edgeAttributeIndex = {}
             edgeAttr = []
             edgeIndex = [[],
                          []]
@@ -55,10 +55,8 @@ class Preprocessor:
                               x=torch.ones(len(nodeIndex), 1),
                               num_features=1)
 
-            sceneGraph.nodeIndex = nodeIndex
-            sceneGraph.edgeAttributeIndex = edgeAttributeIndex
-            
-            # sceneGraphs.append(sceneGraph)
+            # sceneGraph.nodeIndex = nodeIndex
+            # sceneGraph.edgeAttributeIndex = edgeAttributeIndex
 
             row['SG'] = sceneGraph
 
@@ -66,31 +64,22 @@ class Preprocessor:
 
         data = data.apply(getSceneGraph, axis=1)
 
+        self.nodeIndex = nodeIndex
+        self.edgeAttributeIndex = edgeAttributeIndex
+
         return data[['SG']]
 
-    def readSceneGraphs(self, videoName : str) -> pd.DataFrame:
+    def readSceneGraphs(self, videoName : str, split : str) -> pd.DataFrame:
         """
         returns a dataframe of scene graphs for the video inside the dataset folder.
         """
-        pathToFile = os.path.join(DATASET_NAME, videoName, SCENEGRAPH_FILE_NAME)
+        pathToFile = os.path.join(DATASET_NAME, videoName, SCENEGRAPH_DIR_NAME, split + '.json')
         data = pd.read_json(pathToFile, orient='index')
-
-        def getLabels(row):
-            """
-            gets the label for each scene graph.
-            """
-            name = row.name
-
-            row['id'] = name
-            row['label'] = None
-
-            return row
 
         return data
 
-    def loadImageEmbeddings(self, videoName : str) -> pd.DataFrame:
-        data = pd.read_json(os.path.join(DATASET_NAME, videoName, IMAGE_EMBEDDING_FILE_NAME), 
-                            orient='index')
+    def loadImageEmbeddings(self, videoName : str, split : str) -> pd.DataFrame:
+        data = pd.read_json(os.path.join(DATASET_NAME, videoName, IMAGE_EMBEDDING_DIR_NAME, split + '.json'), orient='index')
         
         def transform(row):
             row['imageEmbedding'] = torch.tensor(row[list(range(0, len(row)))], dtype=torch.float)
@@ -101,13 +90,13 @@ class Preprocessor:
 
         return data[['imageEmbedding']]
 
-    def readPeripheralInputs(self, videoName : str):
+    def readPeripheralInputs(self, videoName : str, split : str):
         pass
 
-    def loadAllData(self, videoName : str):
-        sceneGraphs = self.loadSceneGraphData(videoName)
-        imageEmbeddings = self.loadImageEmbeddings(videoName)
-        peripheralInputs = self.readPeripheralInputs(videoName)
+    def loadAllData(self, videoName : str, split : str):
+        sceneGraphs = self.loadSceneGraphData(videoName, split)
+        imageEmbeddings = self.loadImageEmbeddings(videoName, split)
+        peripheralInputs = self.readPeripheralInputs(videoName, split)
 
         def getLabels(row):
             """

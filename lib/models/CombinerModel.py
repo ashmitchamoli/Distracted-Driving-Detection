@@ -1,10 +1,12 @@
 import torch
+import os
+from sklearn.metrics import classification_report, accuracy_score
+import tqdm
+import pickle as pkl
 
 from lib.models.LinearClassifier import LinearClassifier
 from lib.models.GNN import GNN
 from lib.driving_dataset.DrivingDataset import DrivingDataset
-
-import tqdm
 
 class CombinerModel(torch.nn.Module):
     def __init__(self, numSceneGraphFeatures : int, sceneGraphEmbeddingSize : int, imgEmbeddingSize : int, reducedImgEmbeddingSize : int, encoderHiddenLayers : list[int], numClasses : int, n_peripheralInputs : int, feedForwardHiddenLayers : list[int]) -> None:
@@ -15,9 +17,18 @@ class CombinerModel(torch.nn.Module):
 
         self.sceneGraphBlock = GNN(numSceneGraphFeatures, sceneGraphEmbeddingSize)
         self.ffnnClassifierBlock = LinearClassifier(imgEmbeddingSize, reducedImgEmbeddingSize, encoderHiddenLayers, sceneGraphEmbeddingSize, numClasses, n_peripheralInputs, feedForwardHiddenLayers)
-    
+
+        self.parameterString = f"{numSceneGraphFeatures}-{sceneGraphEmbeddingSize}-{imgEmbeddingSize}-{reducedImgEmbeddingSize}-{encoderHiddenLayers}-{numClasses}-{n_peripheralInputs}-{feedForwardHiddenLayers}"
+
     def forward(self, sceneGraph, imgEmbedding, peripheralInputs):
         sceneGraphEmbedding = self.sceneGraphBlock(sceneGraph.x, sceneGraph.edge_index)
+
+        if sceneGraphEmbedding.shape[0] == 0:
+            print("Found embedding size 0")
+            print(sceneGraph)
+        
+        # print("SceneGraphEmbedding :", sceneGraphEmbedding)
+
         return self.ffnnClassifierBlock(imgEmbedding, sceneGraphEmbedding, peripheralInputs)
 
     def train(self, drivingDataset : DrivingDataset, devDataset : DrivingDataset, lr : float, epochs : int) -> None:
@@ -48,6 +59,9 @@ class CombinerModel(torch.nn.Module):
 
                 loss = criterion(output, y)
 
+                # print(y, output.argmax())
+                # print(output)
+
                 loss.backward()
                 optimizer.step()
 
@@ -61,32 +75,66 @@ class CombinerModel(torch.nn.Module):
                 i+=1
 
             # self.trainLoss.append(runningTrainLoss / len(dataLoader))
+            runningTrainLoss /= len(dataLoader)
+            runningDevLoss /= len(devDataset.X)
 
-            print(f"Epoch {epoch+1} | Train loss: {runningTrainLoss:.3f} | Dev loss: {runningDevLoss:.3f}")
+            # metrics[epoch] = self.evaluate(drivingDataset, devDataset)
+            metrics[epoch] = {}
+            metrics[epoch]['trainMetrics'] = self.evaluate(drivingDataset)
+            metrics[epoch]['devMetrics'] = self.evaluate(devDataset)
+            metrics[epoch]['trainMetrics']['loss'] = runningTrainLoss
+            metrics[epoch]['devMetrics']['loss'] = runningDevLoss
+            
+            print(f"Epoch {epoch+1} | Train loss: {runningTrainLoss:.6f} | Dev loss: {runningDevLoss:.6f} | Train accuracy: {metrics[epoch]['trainMetrics']['accuracy']:.3f} | Dev accuracy: {metrics[epoch]['devMetrics']['accuracy']:.3f}")
 
-            metrics[epoch] = self.evaluate(drivingDataset, devDataset)
-            metrics[epoch]['trainLoss'] = runningTrainLoss
-            metrics[epoch]['devLoss'] = runningDevLoss
+            self.metrics = metrics
 
-    def evaluate(self, trainDataset : DrivingDataset, devDataset : DrivingDataset) -> dict:
+            if epoch%5 == 0:
+                self.saveModel()
+
+    def saveModel(self) -> None:
+        path = f'./cache'
+        if not os.path.exists(path):
+            os.makedirs(path)
+        
+        modelDirName = f'CombinerModel_{self.parameterString}'
+        if not os.path.exists(os.path.join(path, modelDirName)):
+            os.makedirs(os.path.join(path, modelDirName))
+
+        torch.save(self.state_dict(), os.path.join(path, modelDirName, 'model.pt'))
+
+        pkl.dump(self.metrics, open(os.path.join(path, 'metrics.pkl'), 'wb'))
+
+    def evaluate(self, dataset : DrivingDataset) -> dict:
+        """
+        returns a dictionary of metrics over the given dataset.
+        """
         metricsDict = {}
 
-        trainPreds = []
+        # iterate over the dataset to get predictions
+        preds = []
         with torch.no_grad():
-            for X in trainDataset:
+            for X in dataset.X:
                 output = self(X[0], X[1], X[2])    
-                trainPreds.append(output.argmax().item())
+                preds.append(output.argmax().item())
         
-        devPreds = []
-        with torch.no_grad():
-            for X in devDataset:
-                output = self(X[0], X[1], X[2])    
-                devPreds.append(output.argmax().item())
+        # iterate over the dev set to get predictions
+        # devPreds = []
+        # with torch.no_grad():
+        #     for X in devDataset:
+        #         output = self(X[0], X[1], X[2])    
+        #         devPreds.append(output.argmax().item())
 
-        trainPreds = torch.tensor(trainPreds)
-        devPreds = torch.tensor(devPreds)
+        preds = torch.tensor(preds)
+        # devPreds = torch.tensor(devPreds)
 
-        metricsDict['trainPreds'] = trainPreds
-        metricsDict['devPreds'] = devPreds
+        metricsDict['preds'] = preds
+        # metricsDict['devPreds'] = devPreds
+
+        # classification report
+        metricsDict['report'] = classification_report(dataset.y, preds, zero_division=0)
+        # metricsDict['devReport'] = classification_report(devDataset.y, devPreds)
+
+        metricsDict['accuracy'] = accuracy_score(dataset.y, preds)
 
         return metricsDict

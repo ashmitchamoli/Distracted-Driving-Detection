@@ -4,12 +4,12 @@ from torch.utils.data import Dataset
 from lib.driving_dataset.Preprocessor import Preprocessor
 
 class DrivingDataset(Dataset):
-    def __init__(self, videoName : str) -> None:
+    def __init__(self, videoName : str, split : str) -> None:
         super().__init__()
 
         self.preprocessor = Preprocessor()
 
-        self.data = self.preprocessor.loadAllData(videoName)
+        self.data = self.preprocessor.loadAllData(videoName, split)
         self.classes = set()
         self.imageEmbeddingSize = self.data.iloc[0]['imageEmbedding'].shape[0]
         self.peripheralInputSize = 1 # ! change this later when adding peripheral inputs
