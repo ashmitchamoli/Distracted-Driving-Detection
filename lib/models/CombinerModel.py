@@ -90,9 +90,9 @@ class CombinerModel(torch.nn.Module):
             self.metrics = metrics
 
             if epoch%5 == 0:
-                self.saveModel()
+                self.saveModel(epoch)
 
-    def saveModel(self) -> None:
+    def saveModel(self, epoch) -> None:
         path = f'./cache'
         if not os.path.exists(path):
             os.makedirs(path)
@@ -101,9 +101,9 @@ class CombinerModel(torch.nn.Module):
         if not os.path.exists(os.path.join(path, modelDirName)):
             os.makedirs(os.path.join(path, modelDirName))
 
-        torch.save(self.state_dict(), os.path.join(path, modelDirName, 'model.pt'))
+        torch.save(self.state_dict(), os.path.join(path, modelDirName, f'model_{epoch}.pt'))
 
-        pkl.dump(self.metrics, open(os.path.join(path, 'metrics.pkl'), 'wb'))
+        pkl.dump(self.metrics, open(os.path.join(path, f'metrics_{epoch}.pkl'), 'wb'))
 
     def evaluate(self, dataset : DrivingDataset) -> dict:
         """
@@ -113,7 +113,7 @@ class CombinerModel(torch.nn.Module):
 
         # iterate over the dataset to get predictions
         preds = []
-        with torch.no_grad():
+        with torch.no_grad(): # ? a way to optimize this. way too expensive to iterate over each frame.
             for X in dataset.X:
                 output = self(X[0], X[1], X[2])    
                 preds.append(output.argmax().item())
@@ -126,15 +126,13 @@ class CombinerModel(torch.nn.Module):
         #         devPreds.append(output.argmax().item())
 
         preds = torch.tensor(preds)
-        # devPreds = torch.tensor(devPreds)
 
         metricsDict['preds'] = preds
-        # metricsDict['devPreds'] = devPreds
-
+        
         # classification report
         metricsDict['report'] = classification_report(dataset.y, preds, zero_division=0)
-        # metricsDict['devReport'] = classification_report(devDataset.y, devPreds)
-
+        
+        # accuracy score
         metricsDict['accuracy'] = accuracy_score(dataset.y, preds)
 
         return metricsDict

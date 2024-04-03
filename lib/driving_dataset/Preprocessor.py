@@ -16,7 +16,7 @@ class Preprocessor:
         videoName : name of the video
         split : 'train', 'dev', 'test'
 
-        Returns a DataFrame of torch_geometric.data.Data objects.
+        Returns a DataFrame of torch_geometric.data.Data objects. Has only one column 'SG'.
         """
         data = self.readSceneGraphs(videoName, split)
 
@@ -115,6 +115,7 @@ class Preprocessor:
         # merge the dataframes on the index
         finalDf = sceneGraphs.merge(imageEmbeddings, left_index=True, right_index=True)
         # ! add peripheral inputs
+
 
         finalDf = finalDf.apply(getLabels, axis=1)
         finalDf = finalDf.dropna()
