@@ -116,7 +116,6 @@ class Preprocessor:
         finalDf = sceneGraphs.merge(imageEmbeddings, left_index=True, right_index=True)
         # ! add peripheral inputs
 
-
         finalDf = finalDf.apply(getLabels, axis=1)
         finalDf = finalDf.dropna()
 

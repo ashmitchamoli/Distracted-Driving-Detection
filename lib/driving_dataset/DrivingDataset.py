@@ -10,6 +10,8 @@ class DrivingDataset(Dataset):
         self.preprocessor = Preprocessor()
 
         self.data = self.preprocessor.loadAllData(videoName, split)
+        self.nodeIndex = self.preprocessor.nodeIndex
+        self.edgeAttributeIndex = self.preprocessor.edgeAttributeIndex
         self.classes = set()
         self.imageEmbeddingSize = self.data.iloc[0]['imageEmbedding'].shape[0]
         self.peripheralInputSize = 1 # ! change this later when adding peripheral inputs
