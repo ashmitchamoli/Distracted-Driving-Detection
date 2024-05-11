@@ -121,3 +121,7 @@ class Preprocessor:
 
         return finalDf
         # return sceneGraphs, imageEmbeddings, peripheralInputs
+
+    def loadFrames(self, videoName : str, split : str):
+        # iterate over the frames director
+        pass

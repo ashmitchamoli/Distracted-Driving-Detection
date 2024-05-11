@@ -1,10 +1,11 @@
 import torch
 from torch.utils.data import Dataset
+from typing import Literal
 
 from lib.driving_dataset.Preprocessor import Preprocessor
 
 class DrivingDataset(Dataset):
-    def __init__(self, videoName : str, split : str) -> None:
+    def __init__(self, videoName : str, split : Literal['train', 'dev', 'test']) -> None:
         super().__init__()
 
         self.preprocessor = Preprocessor()

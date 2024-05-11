@@ -67,7 +67,7 @@ class CombinerModel(torch.nn.Module):
 
                 runningTrainLoss += loss.item()
 
-                if i < len(devDataset):
+                if i < len(devDataset): # ! dependent on the fact that batch size is 1 for now
                     with torch.no_grad():
                         output = self(devDataset.X[i][0], devDataset.X[i][1], devDataset.X[i][2])
                     runningDevLoss += criterion(output, devDataset.y[i]).item()
@@ -80,17 +80,19 @@ class CombinerModel(torch.nn.Module):
 
             # metrics[epoch] = self.evaluate(drivingDataset, devDataset)
             metrics[epoch] = {}
-            metrics[epoch]['trainMetrics'] = self.evaluate(drivingDataset)
             metrics[epoch]['devMetrics'] = self.evaluate(devDataset)
             metrics[epoch]['trainMetrics']['loss'] = runningTrainLoss
             metrics[epoch]['devMetrics']['loss'] = runningDevLoss
             
-            print(f"Epoch {epoch+1} | Train loss: {runningTrainLoss:.6f} | Dev loss: {runningDevLoss:.6f} | Train accuracy: {metrics[epoch]['trainMetrics']['accuracy']:.3f} | Dev accuracy: {metrics[epoch]['devMetrics']['accuracy']:.3f}")
+            print(f"Epoch {epoch+1} | Train loss: {runningTrainLoss:.6f} | Dev loss: {runningDevLoss:.6f} | Dev accuracy: {metrics[epoch]['devMetrics']['accuracy']:.3f}")
 
             self.metrics = metrics
 
             if epoch%5 == 0:
                 self.saveModel(epoch)
+                print(f"Model saved at epoch {epoch}")
+                print("Computing train metrics...")
+                metrics[epoch]['trainMetrics'] = self.evaluate(drivingDataset)
 
     def saveModel(self, epoch) -> None:
         path = f'./cache'
