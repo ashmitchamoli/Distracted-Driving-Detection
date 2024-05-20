@@ -1,6 +1,11 @@
+import os
 import numpy as np
 import pandas as pd
+from typing import Literal
+
 from lib.driving_dataset.Preprocessor import Preprocessor
+
+DATASET_DIR = './Datasets/annotatedvideosv1/AnnotatedVideos/'
 
 preproc = Preprocessor()
 
@@ -8,17 +13,18 @@ def saveSplits(trainDf : pd.DataFrame,
                devDf : pd.DataFrame, 
                testDf : pd.DataFrame, 
                videoName : str,
-               type : str) -> None:
-    trainDf.to_json(f'./Datasets/SynDDAnnotated/{videoName}/{type}/train.json',
-                    orient='index',)
-    devDf.to_json(f'./Datasets/SynDDAnnotated/{videoName}/{type}/dev.json',
+               type : Literal["imageEmbeddings", "sceneGraphs"]) -> None:
+    trainDf.to_json(os.path.join(DATASET_DIR, videoName, type, 'train.json'),
+                    orient='index')
+    devDf.to_json(os.path.join(DATASET_DIR, videoName, type, 'dev.json'),
                   orient='index')
-    testDf.to_json(f'./Datasets/SynDDAnnotated/{videoName}/{type}/test.json',
+    testDf.to_json(os.path.join(DATASET_DIR, videoName, type, 'test.json'),
                    orient='index')
 
 def splitData(videoName : str) -> None:
-    sceneGraphData = pd.read_json(f'./Datasets/SynDDAnnotated/{videoName}/sceneGraphs.json', orient='index')
-    imageEmbeddings = pd.read_json(f'./Datasets/SynDDAnnotated/{videoName}/imageEmbeddings.json', orient='index')
+    # load data
+    sceneGraphData = pd.read_json(os.path.join(DATASET_DIR, videoName, 'sceneGraphs.json'), orient='index')
+    imageEmbeddings = pd.read_json(os.path.join(DATASET_DIR, videoName, 'imageEmbeddings.json'), orient='index')
 
     allData = sceneGraphData.merge(imageEmbeddings, left_index=True, right_index=True)
 
@@ -62,4 +68,4 @@ def splitData(videoName : str) -> None:
     saveSplits(imageEmbeddingsTrain, imageEmbeddingsDev, imageEmbeddingsTest, videoName, 'imageEmbeddings')
 
 if __name__ == '__main__':
-    splitData('test_video')
+    splitData('ALL')

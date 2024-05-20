@@ -4,8 +4,8 @@ from sklearn.metrics import classification_report, accuracy_score
 import tqdm
 import pickle as pkl
 
-from lib.models.LinearClassifier import LinearClassifier
-from lib.models.GNN import GNN
+from lib.models.linear_classifier import LinearClassifier
+from lib.models.gnn import GNN
 from lib.driving_dataset.DrivingDataset import DrivingDataset
 
 class CombinerModel(torch.nn.Module):
@@ -19,16 +19,10 @@ class CombinerModel(torch.nn.Module):
         self.ffnnClassifierBlock = LinearClassifier(imgEmbeddingSize, reducedImgEmbeddingSize, encoderHiddenLayers, sceneGraphEmbeddingSize, numClasses, n_peripheralInputs, feedForwardHiddenLayers)
 
         self.parameterString = f"{numSceneGraphFeatures}-{sceneGraphEmbeddingSize}-{imgEmbeddingSize}-{reducedImgEmbeddingSize}-{encoderHiddenLayers}-{numClasses}-{n_peripheralInputs}-{feedForwardHiddenLayers}"
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def forward(self, sceneGraph, imgEmbedding, peripheralInputs):
         sceneGraphEmbedding = self.sceneGraphBlock(sceneGraph.x, sceneGraph.edge_index)
-
-        if sceneGraphEmbedding.shape[0] == 0:
-            print("Found embedding size 0")
-            print(sceneGraph)
-        
-        # print("SceneGraphEmbedding :", sceneGraphEmbedding)
-
         return self.ffnnClassifierBlock(imgEmbedding, sceneGraphEmbedding, peripheralInputs)
 
     def train(self, drivingDataset : DrivingDataset, devDataset : DrivingDataset, lr : float, epochs : int) -> None:
@@ -46,6 +40,9 @@ class CombinerModel(torch.nn.Module):
         # evaluation metrics such as precision/recall/f1 score on both train and test 
         # embeddings and output probability distribution for each sample
 
+        self.to(self.device)
+        self.ffnnClassifierBlock.to(self.device)
+        self.sceneGraphBlock.to(self.device)
         for epoch in range(epochs):
             runningTrainLoss = 0
             runningDevLoss = 0
@@ -55,12 +52,13 @@ class CombinerModel(torch.nn.Module):
                 optimizer.zero_grad()
 
                 # print(X[1].shape, X[2].shape)
+                X[0] = X[0].to(self.device)
+                X[1] = X[1].to(self.device)
+                X[2] = X[2].to(self.device)
                 output = self(X[0], X[1], X[2])
 
+                y = y.to(self.device)
                 loss = criterion(output, y)
-
-                # print(y, output.argmax())
-                # print(output)
 
                 loss.backward()
                 optimizer.step()
@@ -69,8 +67,13 @@ class CombinerModel(torch.nn.Module):
 
                 if i < len(devDataset): # ! dependent on the fact that batch size is 1 for now
                     with torch.no_grad():
-                        output = self(devDataset.X[i][0], devDataset.X[i][1], devDataset.X[i][2])
-                    runningDevLoss += criterion(output, devDataset.y[i]).item()
+                        X_dev = devDataset.X[i]
+                        X_dev[0] = X_dev[0].to(self.device)
+                        X_dev[1] = X_dev[1].to(self.device)
+                        X_dev[2] = X_dev[2].to(self.device)
+                        output_dev = self(X_dev[0], X_dev[1], X_dev[2])
+                        y_dev = devDataset.y[i].to(self.device)
+                    runningDevLoss += criterion(output_dev, y_dev).item()
                     
                 i+=1
 
@@ -79,7 +82,7 @@ class CombinerModel(torch.nn.Module):
             runningDevLoss /= len(devDataset.X)
 
             # metrics[epoch] = self.evaluate(drivingDataset, devDataset)
-            metrics[epoch] = {}
+            metrics[epoch] = {'trainMetrics': {}}
             metrics[epoch]['devMetrics'] = self.evaluate(devDataset)
             metrics[epoch]['trainMetrics']['loss'] = runningTrainLoss
             metrics[epoch]['devMetrics']['loss'] = runningDevLoss
